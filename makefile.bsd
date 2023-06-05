@@ -1,0 +1,14 @@
+CFLAGS=-g
+
+OBJS= kstuff.o
+
+kstuff: ${OBJS}
+	${CC} ${CFLAGS} -o $@ ${OBJS}
+
+kstuff.o: src/kstuff.c
+	${CC} ${CFLAGS} -c -o kstuff.o -DNOCONFIG src/kstuff.c
+
+test tests:
+
+clean:
+	rm -f ${OBJS} kstuff
