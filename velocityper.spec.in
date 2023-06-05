@@ -1,0 +1,40 @@
+Name:        @PACKAGE_NAME@
+Version:     @PACKAGE_VERSION@
+Release:     1%{?dist}
+Summary:     Stuffs data into the keyboard/terminal input buffer
+
+Prefix:      /usr
+
+Vendor:      None
+Packager:    Phil Shafer <phil@freebsd.org>
+License:     BSD
+
+Group:       Development/Libraries
+URL:         https://github.com/philshafer/kstuff
+Source0:     https://github.com/philshafer/@PACKAGE_NAME@/releases/@PACKAGE_VERSION@/@PACKAGE_NAME@-@PACKAGE_VERSION@.tar.gz
+
+
+%description
+kstuff is a command-line utility that allows data to be "stuffed" into
+the buffer of a terminal, as if entered by the keyboard.
+
+%prep
+%setup -q
+
+%build
+%configure
+make %{?_smp_mflags}
+
+%install
+rm -rf $RPM_BUILD_ROOT
+%make_install
+
+%clean
+rm -rf $RPM_BUILD_ROOT
+
+%post -p /sbin/ldconfig
+
+%files
+%{_bindir}/*
+%{_mandir}/*/*
+%docdir %{_mandir}/*/*
