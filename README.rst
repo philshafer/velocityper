@@ -115,7 +115,7 @@ Escape Sequences
 
 The `velocityper` utility accepts format strings that can contain escape sequences,
 which must be preceeded by a backslash.  The following table lists the sup-
-porting escape sequences:
+porting escape sequences::
 
       EscSeq  Operation
       \a       Emit alarm ('^G')
