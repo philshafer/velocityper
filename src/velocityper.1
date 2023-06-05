@@ -1,0 +1,240 @@
+.\" #
+.\" # Copyright (c) 2023, Phil Shafer
+.\" # All rights reserved.
+.\" # This SOFTWARE is licensed under the LICENSE provided in the
+.\" # LICENSE file. By downloading, installing, copying, or
+.\" # using the SOFTWARE, you agree to be bound by the terms of that
+.\" # LICENSE.
+.\" # Phil Shafer, May 2023
+.\"
+.Dd May 29, 2023
+.Dt XO 1
+.Os
+.Sh NAME
+.Nm velocityper
+.Nd stuff data into a terminal input buffer
+.Sh SYNOPSIS
+.Nm
+.Op Fl options
+.Op Ar argument...
+.Sh DESCRIPTION
+.Pp
+The
+.Nm
+utility allows the user to place character data into a terminal's
+input buffer, as if they were entered from the keyboard, making
+.Nm
+ideal for recording demonstration videos.
+Commands and text input can be essentially pre-recorded, avoiding
+typing mistakes and incorrect data, improving the quality and
+efficiency of the videos.
+There are a variety of timers suitable for tuning the pacing of the
+input to make it appear natural.
+.Pp
+Data and options can be placed in input files to facilitate lengthy or
+complex recordings, and pauses can be incorporated into the session,
+with the user being prompted on a different terminal to proceed.
+.Pp
+.Nm
+uses a normal terminal control operation (ioctl
+.Nm TIOCSTI )
+to place data into the keyboard, which means the user can continue to
+operate the keyboard and provide input during these pauses, allowing a
+mix of "canned" and interactive content.
+.Pp
+.Sh UNITS
+.Pp
+Options that accept time values default to using milliseconds as the units,
+but support the following units as suffixes:
+.Bl -column "Short  " "Long Form123" "Nanoseconds"
+.It "Short  " "Long Form   " " Nanoseconds"
+.It "ns     " "nanoseconds " "             1"
+.It "us     " "microseconds" "         1,000"
+.It "ms     " "milliseconds" "     1,000,000"
+.It "s      " "seconds     " " 1,000,000,000"
+.El
+Leading strings can be used for brevity;
+for example "nano" can be used to nanoseconds. 
+.Sh OPTIONS
+.Pp
+.Nm
+supports a variety of command-line option for tuning its behavior, and
+these options can appear in input files.
+Several of them are better suited for such files, but are also
+supported on the command line for consistency.  See the "FILE FORMAT"
+section below for details.
+.Pp
+The following options are supported:
+.Bl -tag -width indent
+.It Ic -b | Ic --bump
+Introduce a random addition to the intra-charater wait value given
+with the
+.Nm --wait
+option, giving the text a means of appearing more
+natural and less automated.
+For example, using "--wait 40 --bump 60" means a delay of 40ms plus a
+bump of 0-60ms, for  complete range of 40-100ms.
+.It Ic -C <terminal> | Ic --confirm <terminal>
+Provides a managing terminal used for prompting for
+confirmations.
+.It Ic -f <filename> | Ic --file <filename>
+Use the given file as content.  See the "FILE FORMAT" section below.
+.It Ic -F | Ic --force
+Ignore any confirmations requested by the
+.Nm --pause-confirm
+option.
+.It Ic -l <delay> | --line <delay>
+Introduce a delay after each line of data.
+.It Ic -n | Ic --dry-run
+Echo the content on the current tty, but do not place it into any
+terminal input buffer; delays operate normally.
+This can be used to practice the demo or to evaluate timing.
+It effectively turns
+.Nm
+into
+.Xr echo 1 .
+.It Ic -P <message> | Ic --pause-confirm <message>
+Instructs
+.Nm
+to emit a message on the managing terminal and prompt for a return
+before continuing, allowing the demonstration to
+pause and continue as needed.
+.It Ic -p <delay> | --pause <delay>
+Pause the output for the period provided.
+.It Ic -s | --skip
+Don't make output or do delays.  Multiple invocations of this option
+toggle between skipping and not skipping.
+This option can be used in input files to turn
+on and off operations, effectively commenting out section of data.
+.It Ic -t <terminal> | --tty <terminal>
+Provides a terminal to use for pushing input data, allowing
+one terminal to handling the prompting while running
+the demonstration in a second terminal.
+This option requires super-user permissions,
+since it opens security concerns. 
+.If Ic -w <delay> | Ic --wait <delay>
+Introduce a basic delay after each character, slowing the rate as
+required to make the text entry approximate human typing.
+.El
+.Sh ESCAPE SEQUENCES
+.Pp
+The
+.Nm
+utility accepts format strings that can contain escape sequences,
+which must be preceeded by a backslash.
+The following table lists the supporting escape sequences:
+.Bd -literal -offset indent
+EscSeq  Operation
+\\a       Emit alarm ('^G')
+\\b       Emit backspace ('^H')
+\\e       Emit escape ('^[')
+\\f       Emit formfeed ('^L')
+\\n       Emit newline ('^N')
+\\p       Pause for period from --pause option
+\\P       Pause for confirmation
+\\r       Emit carriage return ('^R')
+\\t       Emit TAB ('^')
+\\u{num}  Emit UTF-8 encoding of the code point
+\\xYZ     Emit hex character (0xYZ)
+\\x{hex}  Emit a series of two-digit hex values
+.Ed
+.Sh FILE FORMAT
+.Pp
+The
+.Nm --file
+option allows content to be placed in a file, using the following syntax:
+.Bd -literal -offset indent
+# lines that start with '#' are comments
+# blank lines are ignored
+
+# lines that start with '-' are command line options:
+-p 1000 --wait=100
+
+# lines that start with '\' escape these:
+\# the pound sign here is stuffed
+\\ and this backslash is as well
+
+# any other lines are stuffed
+# the trailing newline is turned into a RETURN ('\\r')
+# to avoid this, end the line with a backslash
+these two lines turn into \\
+one single line
+
+# other backslash characters are supported:
+#    '\\b', '\\n', '\\p', '\\r', '\\t', etc
+
+# Turn off stuffing and waiting, set pause to one second
+# and emit a series of alternating pluses and minuses
+-n --wait=0 --pause=1s
++\\p\\b-\\p\\b+\\p\\b-\\p\\b+\\p\\b-\\p\\b+\\p\\b-\\p\\b+\\p\\b-\\p\\b+\\p\\b-\\p\\bDone
+.Ed
+.Sh EXAMPLES
+.Pp
+This example places six lines of data into the input buffer:
+.Bd -literal -offset indent
+velocityper -b 70ms -w 30ms -l 150ms "one\\rtwo\\rthree\\rfour\\rfive\\rsix\\r"
+.Ed
+.Pp
+This example places three lines of data into the input buffer, pausing
+one second after each line:
+.Bd -literal -offset indent
+velocityper -w 5 -b 95 -p 1s "echo 1\\r\\pecho 2\\r\\pecho 3\\r"
+.Ed
+.Pp
+This example does not stuff data ('-n') but emits on stdout
+the characters "cdef" on one line and the UTF-8 smiley face
+on a second line:
+.Bd -literal -offset indent
+velocityper -n 'one: \\x{63646566}\\ntwo: \\u{263A}\\n'
+.Ed
+.Pp
+This example uses a file to perform a demo in another terminal:
+.Bd -literal -offset indent
+sudo velocityper --tty /dev/pts/1 --file my-demo.ks
+.Ed
+.Pp
+The file would contain the full demo content:
+.Bd -literal -offset indent
+#
+# Demo for JUNOS
+#  These lines will drive a demo of the JUNOS CLI
+# First we adjust the timers to human-ish values
+-w 20ms -b 70ms -l 200ms
+# Then we pause to wait until I'm ready to start
+-P "ready to start demo"
+configure private
+edit protocols bgp group foo neighbor 1.2.3.4
+# Pause again to explain what's about to happen
+-P "bgp complete
+set apply-macro foo one 1
+set apply-macro foo two 2
+show
+# pause to allow more discussion
+-P "apply complete"
+set apply-lock user phil
+up 1
+protect neighbor 1.2.3.4
+# These skip lines are used to comment out a section of data,
+# which can be done using comments, but if the section is
+# lengthy, then adding two "--skip" lines might be easier.
+--skip
+show
+--skip
+# At each of these pauses, I can talk as well as type on
+# the terminal, mixing canned and interactive content.
+# But I might need to restore some state (e.g. location) before
+# hitting RETURN in the other terminal.
+-P "protect complete
+show | compare
+-P "done"
+.Ed
+.Sh HISTORICAL NOTES
+.Pp
+This command will not work under OpenBSD, due to removal of TIOCSTI:
+.Bd --literal --offset indent
+https://undeadly.org/cgi?action=article&sid=20170701132619
+.Ed
+.Sh AUTHORS
+.Nm
+was written by
+.An Phil Shafer Aq Mt phil@freebsd.org .
