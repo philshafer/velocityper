@@ -57,19 +57,20 @@ nanoseconds.
 Options
 -------
 
-`velocityper` supports a variety of command-line option for tuning its behavior,
-and these options can appear in input files.  Several of them are better
-suited for such files, but are also supported on the command line for con-
-sistency.  See the "FILE FORMAT" section below for details.
+`velocityper` supports a variety of command-line option for tuning its
+behavior, and these options can appear in input files.  Several of
+them are better suited for such files, but are also supported on the
+command line for con- sistency.  See the "FILE FORMAT" section below
+for details.
 
 The following options are supported::
 
   -b | --bump
-        Introduce a random addition to the intra-charater wait value given
-        with the --wait option, giving the text a means of appearing more
-        natural and less automated.  For example, using "--wait 40 --bump
-        60" means a delay of 40ms plus a bump of 0-60ms, for  complete range
-        of 40-100ms.
+        Introduce a random addition to the intra-charater wait value
+        given with the --wait option, giving the text a means of
+        appearing more natural and less automated.  For example, using
+        "--wait 40 --bump 60" means a delay of 40ms plus a bump of
+        0-60ms, for complete range of 40-100ms.
 
   -C <terminal> | --confirm <terminal>
         Provides a managing terminal used for prompting for confirmations.
@@ -84,14 +85,14 @@ The following options are supported::
         Introduce a delay after each line of data.
 
   -n | --dry-run
-        Echo the content on the current tty, but do not place it into any
-        terminal input buffer; delays operate normally.  This can be used to
-        practice the demo or to evaluate timing.
+        Echo the content on the current tty, but do not place it into
+        any terminal input buffer; delays operate normally.  This can
+        be used to practice the demo or to evaluate timing.
 
   -P <message> | --pause-confirm <message>
-        Instructs `velocityper` to emit a message on the managing terminal and
-        prompt for a return before continuing, allowing the demonstration to
-        pause and continue as needed.
+        Instructs `velocityper` to emit a message on the managing
+        terminal and prompt for a return before continuing, allowing
+        the demonstration to pause and continue as needed.
 
   -p <delay> | --pause <delay>
         Pause the output for the period provided.
@@ -103,19 +104,20 @@ The following options are supported::
         out section of data.
 
   -t <terminal> | --tty <terminal>
-        Provides a terminal to use for pushing input data, allowing one ter-
-        minal to handling the prompting while running the demonstration in a
-        second terminal.  This option requires super-user permissions, since
-        it opens security concerns.  infinityIntroduce a basic delay after
-        each character, slowing the rate as required to make the text entry
-        approximate human typing.
+        Provides a terminal to use for pushing input data, allowing
+        one ter- minal to handling the prompting while running the
+        demonstration in a second terminal.  This option requires
+        super-user permissions, since it opens security concerns.
+        infinityIntroduce a basic delay after each character, slowing
+        the rate as required to make the text entry approximate human
+        typing.
 
 Escape Sequences
 ----------------
 
-The `velocityper` utility accepts format strings that can contain escape sequences,
-which must be preceeded by a backslash.  The following table lists the sup-
-porting escape sequences::
+The `velocityper` utility accepts format strings that can contain
+escape sequences, which must be preceeded by a backslash.  The
+following table lists the sup- porting escape sequences::
 
       EscSeq  Operation
       \a       Emit alarm ('^G')
