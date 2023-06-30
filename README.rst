@@ -75,6 +75,11 @@ The following options are supported::
   -C <terminal> | --confirm <terminal>
         Provides a managing terminal used for prompting for confirmations.
 
+  -e <delay> | --end <delay>
+        Introduce a delay before each line of data.  This can be used to al-
+        low the viewer to see a full command string before the command is
+        executed.
+
   -f <filename> | --file <filename>
         Use the given file as content.  See the "FILE FORMAT" section below.
 
