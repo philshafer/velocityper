@@ -38,6 +38,7 @@ static struct opts {
     int o_fd;			/* Holds our file descriptor */
     FILE *o_confirm;		/* Terminal to read confirmations from */
     milliseconds_t o_bump;	/* Random 'bump' to pause */
+    milliseconds_t o_end;	/* Time to pause before each line ends */
     char *o_file;		/* '--file' option */
     int o_force;		/* Force: skip confirmations  */
     int o_dryrun;		/* Dry run: don't confirm anything */
@@ -51,6 +52,7 @@ static struct opts {
 static struct option long_opts[] = {
     { "bump", required_argument, NULL, 'b' },
     { "confirm", required_argument, NULL, 'C' },
+    { "end", required_argument, NULL, 'e' },
     { "file", required_argument, NULL, 'f' },
     { "force", no_argument, NULL, 'F' },
     { "help", no_argument, NULL, 'h' },
@@ -68,6 +70,7 @@ static struct option long_opts[] = {
 static const char *help_opts[] = {
     " <delay>", "Bump the 'wait' timer by a random amount",
     " <tty>", "Provide a terminal name for prompting confirmations",
+    " <end>", "Provide a delay before newlines",
     " <file>", "Provide a file for content data",
     "", "Ignore confirmation requests",
     "", "Display this help message",
@@ -87,14 +90,14 @@ static const char *program_name;
 static void
 print_help (void)
 {
-    int has_help = 1, i;
+    int has_help = 1;
     char buf[128];
     struct option *opt;
     const char **help = help_opts;
 
     printf("Usage: %s [options...] [strings...]\n", program_name ?: "velocityper");
 
-    for (i = 0, opt = long_opts; opt->name; i++, opt++, help += 2) {
+    for (opt = long_opts; opt->name; opt++, help += 2) {
 	if (has_help && *help == NULL)
 	    has_help = 0;	/* Done run out of data: SNO */
 
@@ -189,6 +192,11 @@ do_pause (int p)
 static void
 handle_char (char c)
 {
+    /* Pause before newline */
+    if ((c == '\r' || c == '\n') && opts.o_end) {
+	do_pause(opts.o_end);
+    }
+
     if (opts.o_dryrun) {
 	write(opts.o_fd, &c, 1); /* Write the byte to the fd (not stuffed) */
 
@@ -206,6 +214,7 @@ handle_char (char c)
         do_pause(opts.o_wait + bump);
     }
 
+    /* Pause after newline */
     if ((c == '\r' || c == '\n') && opts.o_line) {
 	do_pause(opts.o_line);
     }
@@ -388,7 +397,7 @@ process_argv (int ac, char **av)
     optind = 1;			/* Reset to allow restarting */
     char *msg = NULL;
 
-    while ((rc = getopt_long(ac, av, "b:C:Ff:hl:nP:p:st:vw:",
+    while ((rc = getopt_long(ac, av, "b:C:e:Ff:hl:nP:p:st:vw:",
                                 long_opts, NULL)) != -1) {
         switch (rc) {
         case 'b':
@@ -406,6 +415,10 @@ process_argv (int ac, char **av)
 
         case 'F':
             opts.o_force = !opts.o_force;
+            break;
+
+        case 'e':
+	    opts.o_end = strtoms(optarg);
             break;
 
         case 'f':
