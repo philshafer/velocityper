@@ -318,6 +318,10 @@ handle_string (char *str)
                 handle_char('\b'); /* ^H */
                 break;
 
+            case 'd':
+                handle_char(0x04); /* ^D */
+                break;
+
             case 'e':
                 handle_char(0x1b); /* ESC */
                 break;
