@@ -66,6 +66,8 @@ section below for details.
 .Pp
 The following options are supported:
 .Bl -tag -width indent
+.\"
+.\"
 .It Ic -b | Ic --bump
 Introduce a random addition to the intra-charater wait value given
 with the
@@ -74,21 +76,37 @@ option, giving the text a means of appearing more
 natural and less automated.
 For example, using "--wait 40 --bump 60" means a delay of 40ms plus a
 bump of 0-60ms, for  complete range of 40-100ms.
+.\"
+.\"
 .It Ic -C <terminal> | Ic --confirm <terminal>
 Provides a managing terminal used for prompting for
 confirmations.
+.\"
+.\"
+.It Ic -D | --debug
+Generate internal debug information.
+.\"
+.\"
 .It Ic -e <delay> | Ic --end <delay>
 Introduce a delay before each line of data.
 This can be used to allow the viewer to see a full command string
 before the command is executed.
-.It Ic -f <filename> | Ic --file <filename>
-Use the given file as content.  See the "FILE FORMAT" section below.
+.\"
+.\"
 .It Ic -F | Ic --force
 Ignore any confirmations requested by the
 .Nm --pause-confirm
 option.
+.\"
+.\"
+.It Ic -f <filename> | Ic --file <filename>
+Use the given file as content.  See the "FILE FORMAT" section below.
+.\"
+.\"
 .It Ic -l <delay> | --line <delay>
 Introduce a delay after each line of data.
+.\"
+.\"
 .It Ic -n | Ic --dry-run
 Echo the content on the current tty, but do not place it into any
 terminal input buffer; delays operate normally.
@@ -103,22 +121,47 @@ Instructs
 to emit a message on the managing terminal and prompt for a return
 before continuing, allowing the demonstration to
 pause and continue as needed.
+.\"
+.\"
 .It Ic -p <delay> | --pause <delay>
 Pause the output for the period provided.
+.\"
+.\"
+.It Ic -S <period> | --sleep <period>
+Sleep immediately for the specified period.
+.\"
+.\"
 .It Ic -s | --skip
 Don't make output or do delays.  Multiple invocations of this option
 toggle between skipping and not skipping.
 This option can be used in input files to turn
 on and off operations, effectively commenting out section of data.
+.\"
+.\"
+.It Ic -T <capname> | --tput <capname>
+Emit the terminal capability associated with the given name.  This
+option is meant to mimic the
+.Xr tput 1
+command, but currently only implements the
+.Nm clear
+and
+.Nm home
+capabilities.
+.\"
+.\"
 .It Ic -t <terminal> | --tty <terminal>
 Provides a terminal to use for pushing input data, allowing
 one terminal to handling the prompting while running
 the demonstration in a second terminal.
 This option requires super-user permissions,
 since it opens security concerns. 
+.\"
+.\"
 .If Ic -w <delay> | Ic --wait <delay>
 Introduce a basic delay after each character, slowing the rate as
 required to make the text entry approximate human typing.
+.\"
+.\"
 .El
 .Sh ESCAPE SEQUENCES
 .Pp
@@ -149,14 +192,13 @@ The
 option allows content to be placed in a file, using the following syntax:
 .Bd -literal -offset indent
 # lines that start with '#' are comments
-# blank lines are ignored
 
 # lines that start with '-' are command line options:
 -p 1000 --wait=100
 
-# lines that start with '\' escape these:
-\# the pound sign here is stuffed
-\\ and this backslash is as well
+# lines that start with '\\' escape these:
+\\# the pound sign here is stuffed
+\\\\ and the second backslash is as well
 
 # any other lines are stuffed
 # the trailing newline is turned into a RETURN ('\\r')
@@ -238,6 +280,13 @@ This command will not work under OpenBSD, due to removal of TIOCSTI:
 .Bd --literal --offset indent
 https://undeadly.org/cgi?action=article&sid=20170701132619
 .Ed
+.Pp
+On many operating systems, the terminal input buffer has a
+finite size limit, some as low as 1024 (e.g. MAX_INPUT on MacOS).
+This may impact the ability of
+.Nm
+to place data into the input buffer without another process actively
+reading from the terminal.
 .Sh AUTHORS
 .Nm
 was written by
