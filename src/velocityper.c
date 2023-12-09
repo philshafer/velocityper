@@ -38,6 +38,7 @@ static struct opts {
     int o_fd;			/* Holds our file descriptor */
     FILE *o_confirm;		/* Terminal to read confirmations from */
     milliseconds_t o_bump;	/* Random 'bump' to pause */
+    int o_debug;		/* Debug flag */
     milliseconds_t o_end;	/* Time to pause before each line ends */
     char *o_file;		/* '--file' option */
     int o_force;		/* Force: skip confirmations  */
@@ -49,18 +50,24 @@ static struct opts {
     milliseconds_t o_wait;	/* Time to pause after each character */
 } opts;
 
+/*
+ * These next two table _MUST_ be kept in the same order.
+ */
 static struct option long_opts[] = {
     { "bump", required_argument, NULL, 'b' },
     { "confirm", required_argument, NULL, 'C' },
+    { "debug", no_argument, NULL, 'D' },
     { "end", required_argument, NULL, 'e' },
-    { "file", required_argument, NULL, 'f' },
     { "force", no_argument, NULL, 'F' },
+    { "file", required_argument, NULL, 'f' },
     { "help", no_argument, NULL, 'h' },
     { "line", required_argument, NULL, 'l' },
     { "dry-run", no_argument, NULL, 'n' },
     { "parse-confirm", required_argument, NULL, 'P' },
     { "pause", required_argument, NULL, 'p' },
+    { "sleep", required_argument, NULL, 'S' },
     { "skip", no_argument, NULL, 's' },
+    { "tput", required_argument, NULL, 'T' },
     { "tty", required_argument, NULL, 't' },
     { "version", no_argument, NULL, 'v' },
     { "wait", required_argument, NULL, 'w' },
@@ -68,20 +75,23 @@ static struct option long_opts[] = {
 };
 
 static const char *help_opts[] = {
-    " <delay>", "Bump the 'wait' timer by a random amount",
-    " <tty>", "Provide a terminal name for prompting confirmations",
-    " <end>", "Provide a delay before newlines",
-    " <file>", "Provide a file for content data",
-    "", "Ignore confirmation requests",
-    "", "Display this help message",
-    " <delay>", "Set delay between lines of data",
-    "", "Do not place data in input buffer; echo instead",
-    " <msg>", "Emit a message and wait for confirmation",
-    " <delay>", "Set the 'pause' delay",
-    "", "Do not make output or perform delays",
-    " <tty>", "Provide a terminal for pushing input data",
-    "", "Emit version information (and exit)",
-    " <delay>", "Set the 'wait' delay between characters",
+    /* b */ " <delay>", "Bump the 'wait' timer by a random amount",
+    /* C */ " <tty>", "Provide a terminal name for prompting confirmations",
+    /* D */ "", "Enable debug output",
+    /* e */ " <end>", "Provide a delay before newlines",
+    /* F */ "", "Ignore confirmation requests",
+    /* f */ " <file>", "Provide a file for content data",
+    /* h */ "", "Display this help message",
+    /* l */ " <delay>", "Set delay between lines of data",
+    /* n */ "", "Do not place data in input buffer; just echo it",
+    /* P */ " <msg>", "Emit a message and wait for confirmation",
+    /* p */ " <delay>", "Set the 'pause' delay",
+    /* S */ " <time>", "Sleep immediately for the given period",
+    /* s */ "", "Do not make output or perform delays",
+    /* T */ " <capname>", "Emit terminal capability ('clear' or 'home')",
+    /* t */ " <tty>", "Provide a terminal for pushing input data",
+    /* v */ "", "Emit version information (and exit)",
+    /* w */ " <delay>", "Set the 'wait' delay between characters",
     NULL
 };
 
@@ -192,6 +202,9 @@ do_pause (int p)
 static void
 handle_char (char c)
 {
+    if (opts.o_debug)
+	fprintf(stderr, "[char %#02x]", c);
+
     /* Pause before newline */
     if ((c == '\r' || c == '\n') && opts.o_end) {
 	do_pause(opts.o_end);
@@ -253,6 +266,9 @@ utf8_to_len (wchar_t wc)
 static void
 handle_char_utf8 (wchar_t wc)
 {
+    if (opts.o_debug)
+	fprintf(stderr, "[wide %#06lx]", (unsigned long) wc);
+
     int len = utf8_to_len(wc);
 
     if (len <= 1) { /* Simple case (and error case) */
@@ -390,14 +406,50 @@ handle_string (char *str)
     }
 }
 
+/*
+ * We don't really want to require ncurses and don't want the heartache
+ * of initscr() and locale and all that pain.  So we stuff our fingers in
+ * our ears and rest in the "knowledge" that vt100 won the terminal wars,
+ * and make vt100-compatible output.  What'd you say?  I can't hear you...
+ */
+static void
+handle_tput (const char *optarg)
+{
+    static const char clear[] = {
+	0x1b, 0x5b, 0x48, 0x1b, 0x5b, 0x32, 0x4a, 0x1b, 0x5b, 0x33, 0x4a, 0
+    };
+    static const char home[] = { 0x1b, 0x5b, 0x48, 0 };
+    const char *str = NULL;
+
+    if (strcmp(optarg, "clear") == 0)
+	str = clear;
+    else if (strcmp(optarg, "home") == 0)
+	str = home;
+    else
+	return;
+	
+    if (opts.o_dryrun) {
+	char c;
+	for ( ; (c = *str); str++)
+	    handle_char(c);
+    } else {
+	/*
+	 * These characters are written directly to the terminal, not
+	 * stuffed into the terminal input stream.
+	 */
+	(void) write(opts.o_fd, str, strlen(str));
+    }
+}
+
 static void
 process_argv (int ac, char **av)
 {
     int rc;
     optind = 1;			/* Reset to allow restarting */
     char *msg = NULL;
+    milliseconds_t val;
 
-    while ((rc = getopt_long(ac, av, "b:C:e:Ff:hl:nP:p:st:vw:",
+    while ((rc = getopt_long(ac, av, "b:C:De:Ff:hl:nP:pS:sT:t:vw:",
                                 long_opts, NULL)) != -1) {
         switch (rc) {
         case 'b':
@@ -413,12 +465,16 @@ process_argv (int ac, char **av)
 		err(1, "could not open confirmation: '%s'", optarg);
 	    break;
 
-        case 'F':
-            opts.o_force = !opts.o_force;
+        case 'D':
+            opts.o_debug = !opts.o_debug;
             break;
 
         case 'e':
 	    opts.o_end = strtoms(optarg);
+            break;
+
+        case 'F':
+            opts.o_force = !opts.o_force;
             break;
 
         case 'f':
@@ -447,9 +503,19 @@ process_argv (int ac, char **av)
 	    opts.o_pause = strtoms(optarg);
             break;
 
+	case 'S':
+	    val = strtoms(optarg);
+	    if (val)
+		do_pause(val);
+	    break;
+
         case 's':
             opts.o_skip = !opts.o_skip;
             break;
+
+	case 'T':
+	    handle_tput(optarg);
+	    break;
 
         case 't':
             opts.o_tty = strdup(optarg);
@@ -592,7 +658,7 @@ handle_file (const char *fname)
         cp = buf;
 
         if (*cp == '#') {
-	    /* comment */
+	    /* If the very first character is '#', it's a comment */
 	    continue;
 	} else if (*cp == '-') {
 	    /* options */
@@ -612,6 +678,10 @@ handle_file (const char *fname)
 		else ep[-1] = '\r';
 	    }
 
+	    /*
+	     * If the first character is '\', we skip it; this allows us to
+	     * have "\# not a comment" lines.
+	     */
             if (cp[0] == '\\')
                 cp += 1;
             handle_string(cp);
