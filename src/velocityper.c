@@ -26,6 +26,10 @@
 #include "config.h"
 #endif /* NOCONFIG */
 
+/*
+ * We carry time internally as milliseconds.  Anything more seems
+ * like overkill.
+ */
 #define NSECS_PER_uSEC 1000	/* Nanoseconds per microsecond */
 #define uSECS_PER_MSEC 1000	/* Microseconds per millisecond */
 #define MSECS_PER_SEC  1000	/* Milliseconds per second */
@@ -449,7 +453,7 @@ process_argv (int ac, char **av)
     char *msg = NULL;
     milliseconds_t val;
 
-    while ((rc = getopt_long(ac, av, "b:C:De:Ff:hl:nP:pS:sT:t:vw:",
+    while ((rc = getopt_long(ac, av, "b:C:De:Ff:hl:nP:p:S:sT:t:vw:",
                                 long_opts, NULL)) != -1) {
         switch (rc) {
         case 'b':
