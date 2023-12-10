@@ -446,6 +446,10 @@ handle_tput (const char *optarg)
 	 * These characters are written directly to the terminal, not
 	 * stuffed into the terminal input stream.
 	 */
+	if (opts.o_debug)
+	    fprintf(stderr, "[tput %s (%lu)]",
+		    optarg, (unsigned long) strlen(str));
+
 	(void) write(opts.o_fd, str, strlen(str));
     }
 }
