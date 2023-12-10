@@ -8,9 +8,9 @@
  * Phil Shafer, May 2023
  */
 
-#include <sys/ioctl.h>
-#include <termios.h>
+#include <unistd.h>
 #include <stdio.h>
+#include <termios.h>
 #include <stdlib.h>
 #include <getopt.h>
 #include <string.h>
@@ -19,6 +19,7 @@
 #include <errno.h>
 #include <time.h>
 #include <ctype.h>
+#include <sys/ioctl.h>
 
 #ifdef NOCONFIG
 #define VELOCITYPER_VERSION "[unknown]" /* Fake a value */
