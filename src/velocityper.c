@@ -19,7 +19,15 @@
 #include <errno.h>
 #include <time.h>
 #include <ctype.h>
+#include <limits.h>
 #include <sys/ioctl.h>
+
+#ifndef TRUE			/* #include <stdtrue>? */
+#define TRUE 1
+#endif
+#ifndef FALSE
+#define FALSE 0
+#endif
 
 #ifdef NOCONFIG
 #define VELOCITYPER_VERSION "[unknown]" /* Fake a value */
@@ -28,31 +36,31 @@
 #endif /* NOCONFIG */
 
 /*
- * We carry time internally as milliseconds.  Anything more seems
- * like overkill.
+ * We carry time internally as nanoseconds.
  */
 #define NSECS_PER_uSEC 1000	/* Nanoseconds per microsecond */
 #define uSECS_PER_MSEC 1000	/* Microseconds per millisecond */
 #define MSECS_PER_SEC  1000	/* Milliseconds per second */
 
 #define NSECS_PER_MSEC (NSECS_PER_uSEC * uSECS_PER_MSEC)
+#define NSECS_PER_SEC (NSECS_PER_MSEC * MSECS_PER_SEC)
 
-typedef unsigned long long milliseconds_t;
+typedef unsigned long long nanoseconds_t;
 
 static struct opts {
     int o_fd;			/* Holds our file descriptor */
     FILE *o_confirm;		/* Terminal to read confirmations from */
-    milliseconds_t o_bump;	/* Random 'bump' to pause */
+    nanoseconds_t o_bump;	/* Random 'bump' to pause */
     int o_debug;		/* Debug flag */
-    milliseconds_t o_end;	/* Time to pause before each line ends */
+    nanoseconds_t o_end;	/* Time to pause before each line ends */
     char *o_file;		/* '--file' option */
     int o_force;		/* Force: skip confirmations  */
     int o_dryrun;		/* Dry run: don't confirm anything */
-    milliseconds_t o_line;	/* Time to pause after each line */
-    milliseconds_t o_pause;	/* Time to pause for '\p' */
+    nanoseconds_t o_line;	/* Time to pause after each line */
+    nanoseconds_t o_pause;	/* Time to pause for '\p' */
     int o_skip;			/* Don't process anything */
     char *o_tty;		/* Terminal to prompt on */
-    milliseconds_t o_wait;	/* Time to pause after each character */
+    nanoseconds_t o_wait;	/* Time to pause after each character */
 } opts;
 
 /*
@@ -142,30 +150,35 @@ prefix_match (const char *str, const char *base)
     return (*str == '\0');
 }
 
-static milliseconds_t
-strtoms (char *cp)
+static nanoseconds_t
+strtons (char *cp)
 {
-    milliseconds_t t = 0;
+    nanoseconds_t t = 0;
     char *ep = NULL;
 
     t = strtoull(cp, &ep, 10);
-    if (t == 0 && errno == EINVAL)
+    if ((t == 0 && errno == EINVAL) || (t == ULLONG_MAX && errno == ERANGE))
 	err(1, "invalid time value: '%s'", cp);
 
     /* Look for a suffix */
     if (ep && *ep) {
 	if (prefix_match(ep, "seconds")) {
-	    t *= MSECS_PER_SEC;
+	    t *= NSECS_PER_SEC;
 	} else if (prefix_match(ep, "milliseconds") || prefix_match(ep, "ms")) {
-	    /* nothing */
+	    t *= NSECS_PER_MSEC;
 	} else if (prefix_match(ep, "microseconds") || prefix_match(ep, "us")) {
-	    t /= uSECS_PER_MSEC;
+	    t *= NSECS_PER_uSEC;
 	} else if (prefix_match(ep, "nanoseconds") || prefix_match(ep, "ns")) {
-	    t /= NSECS_PER_MSEC;
+	    /* nothing */
 	} else {
 	    errx(1, "unknown time unit: '%s'", ep);
 	}
+    } else {
+	t *= NSECS_PER_MSEC;
     }
+
+    if (opts.o_debug)
+	fprintf(stderr, "[strtoms '%s' -> %lld]\n", cp, t);
 
     return t;
 }
@@ -194,12 +207,15 @@ do_confirm (const char *msg)
 }
 
 static void
-do_pause (int p)
+do_pause (nanoseconds_t p)
 {
     struct timespec tv;
 
-    tv.tv_sec = p / MSECS_PER_SEC;
-    tv.tv_nsec = (p % MSECS_PER_SEC) * NSECS_PER_MSEC;
+    tv.tv_sec = p / NSECS_PER_SEC;
+    tv.tv_nsec = p % NSECS_PER_SEC;
+
+    if (opts.o_debug)
+	fprintf(stderr, "[pause (%ld.%09ld)]", tv.tv_sec, tv.tv_nsec);
 
     nanosleep(&tv, &tv);
 }
@@ -460,13 +476,13 @@ process_argv (int ac, char **av)
     int rc;
     optind = 1;			/* Reset to allow restarting */
     char *msg = NULL;
-    milliseconds_t val;
+    nanoseconds_t val;
 
     while ((rc = getopt_long(ac, av, "b:C:De:Ff:hl:nP:p:S:sT:t:vw:",
                                 long_opts, NULL)) != -1) {
         switch (rc) {
         case 'b':
-	    opts.o_bump = strtoms(optarg);
+	    opts.o_bump = strtons(optarg);
             break;
 
 	case 'C':
@@ -483,7 +499,7 @@ process_argv (int ac, char **av)
             break;
 
         case 'e':
-	    opts.o_end = strtoms(optarg);
+	    opts.o_end = strtons(optarg);
             break;
 
         case 'F':
@@ -501,7 +517,7 @@ process_argv (int ac, char **av)
 	    break;
 
         case 'l':
-	    opts.o_line = strtoms(optarg);
+	    opts.o_line = strtons(optarg);
             break;
 
         case 'n':
@@ -513,11 +529,11 @@ process_argv (int ac, char **av)
 	    break;
 
         case 'p':
-	    opts.o_pause = strtoms(optarg);
+	    opts.o_pause = strtons(optarg);
             break;
 
 	case 'S':
-	    val = strtoms(optarg);
+	    val = strtons(optarg);
 	    if (val)
 		do_pause(val);
 	    break;
@@ -542,7 +558,7 @@ process_argv (int ac, char **av)
 	    break;
 
         case 'w':
-	    opts.o_wait = strtoms(optarg);
+	    opts.o_wait = strtons(optarg);
             break;
 
         default:
@@ -570,21 +586,31 @@ strskipws (char *cp)
 static char *
 strskiptows (char *cp)
 {
-    int in_quote = 0;
-    char *out = NULL, *skip = NULL;
+    char in_quote = 0;
+    char *out = NULL;
+    int skip = FALSE;
 
     for ( ; *cp; cp++) {
 	if (*cp == '\\') {
-	    if (out == NULL)
-		skip = out = cp; /* Start overwriting */
-
-	} else if (*cp == '"') {
-	    in_quote = !in_quote;
+	    if (cp[1] == '\0')
+		return cp;
 
 	    if (out == NULL)
 		out = cp; /* Start overwriting */
 
-	    skip = out;
+	    cp += 1;
+
+	} else if (*cp == in_quote) {
+	    in_quote = 0;
+	    skip = TRUE;	/* Skip this trailing quote */
+
+	} else if (*cp == '"' || *cp == '\'') {
+	    in_quote = *cp;
+
+	    if (out == NULL)
+		out = cp; /* Start overwriting */
+
+	    skip = TRUE;	/* Skip this leading quote */
 
 	} else if (in_quote) {
 	    /* nothing */
@@ -599,7 +625,7 @@ strskiptows (char *cp)
 	if (out && !skip)
 	    *out++ = *cp;
 
-	skip = NULL;
+	skip = FALSE;		/* Reset skip flag */
     }
 
     if (out)
@@ -611,7 +637,7 @@ strskiptows (char *cp)
 static int
 build_argv (char **av, int avsize, char *cp)
 {
-    static char dummy[] = "command";
+    static char dummy[] = "av0";
     int ac = 0;
 
     av[ac++] = dummy;
@@ -683,6 +709,11 @@ handle_file (const char *fname)
 		continue;
 
 	    process_argv(ac, av);
+
+	    if (av[optind] != NULL) {
+		fprintf(stderr, "[warning: extra argument '%s' (ignored)]\n",
+			av[optind]);
+	    }
 
 	} else {
 	    if (ep != buf && ep[-1] == '\n') {
