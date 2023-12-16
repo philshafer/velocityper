@@ -197,7 +197,7 @@ do_confirm (const char *msg)
     FILE *inp = opts.o_confirm ?: stdin;
     FILE *outp = opts.o_confirm ?: stdout;
 
-    if (msg == NULL)
+    if (msg == NULL || *msg == '\0')
 	msg = "paused";
 
     fprintf(outp, "[%s; press enter to continue]\n>>> ", msg);
@@ -351,13 +351,13 @@ handle_string (char *str)
                 handle_char('\n');
                 break;
 
-            case 'p':
-                do_pause(opts.o_pause);
-                break;
-
             case 'P':
 		if (!opts.o_force)
 		    do_confirm(NULL);
+                break;
+
+            case 'p':
+                do_pause(opts.o_pause);
                 break;
 
             case 'r':
@@ -699,6 +699,15 @@ handle_file (const char *fname)
         if (*cp == '#') {
 	    /* If the very first character is '#', it's a comment */
 	    continue;
+	} else if (cp[0] == '-' && cp[1] == '+') {
+	    /* The full line is a confirmation prompt */
+	    
+	    if (ep[-1] == '\n')	/* Trim trailing newline */
+		ep[-1] = '\0';
+
+	    cp = strskipws(cp + 2);
+	    do_confirm(cp);
+
 	} else if (*cp == '-') {
 	    /* options */
 	    if (ep != buf && ep[-1] == '\n')
