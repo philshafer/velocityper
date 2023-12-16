@@ -121,6 +121,9 @@ Instructs
 to emit a message on the managing terminal and prompt for a return
 before continuing, allowing the demonstration to
 pause and continue as needed.
+Alternatively, use
+.Nm -+ message
+lines in files to prompt for confirmation.
 .\"
 .\"
 .It Ic -p <delay> | --pause <delay>
@@ -157,9 +160,14 @@ This option requires super-user permissions,
 since it opens security concerns. 
 .\"
 .\"
-.If Ic -w <delay> | Ic --wait <delay>
+.It Ic -w <delay> | Ic --wait <delay>
 Introduce a basic delay after each character, slowing the rate as
 required to make the text entry approximate human typing.
+Use the 
+.Nm --bump
+to add an random delay in addition to the value given using the
+.Nm --wait
+option, allowing the characters to appear in a more natural tempo.
 .\"
 .\"
 .El
@@ -174,6 +182,7 @@ The following table lists the supporting escape sequences:
 EscSeq  Operation
 \\a       Emit alarm ('^G')
 \\b       Emit backspace ('^H')
+\\d       Emit EOF ('^D')
 \\e       Emit escape ('^[')
 \\f       Emit formfeed ('^L')
 \\n       Emit newline ('^N')
@@ -184,36 +193,89 @@ EscSeq  Operation
 \\u{num}  Emit UTF-8 encoding of the code point
 \\xYZ     Emit hex character (0xYZ)
 \\x{hex}  Emit a series of two-digit hex values
+\\^N      Emit the corresponding control character (e.g. "\^G" or "\^g")
+\\^[      Emit escape ('^[')
+\\^\\      Emit file separator (0x1c)
+\\^]      Emit group separator (0x1d)
+\\^^      Emit record separator (0x1e)
+\\^_      Emit unit separator (0x1f)
+\\^?      Emit delete (0x7f)
+\\^@      Emit NUL character (0x00)
 .Ed
 .Sh FILE FORMAT
 .Pp
 The
 .Nm --file
 option allows content to be placed in a file, using the following syntax:
-.Bd -literal -offset indent
-# lines that start with '#' are comments
-
-# lines that start with '-' are command line options:
--p 1000 --wait=100
-
-# lines that start with '\\' escape these:
-\\# the pound sign here is stuffed
-\\\\ and the second backslash is as well
-
-# any other lines are stuffed
-# the trailing newline is turned into a RETURN ('\\r')
-# to avoid this, end the line with a backslash
-these two lines turn into \\
-one single line
-
-# other backslash characters are supported:
-#    '\\b', '\\n', '\\p', '\\r', '\\t', etc
-
-# Turn off stuffing and waiting, set pause to one second
-# and emit a series of alternating pluses and minuses
--n --wait=0 --pause=1s
-+\\p\\b-\\p\\b+\\p\\b-\\p\\b+\\p\\b-\\p\\b+\\p\\b-\\p\\b+\\p\\b-\\p\\b+\\p\\b-\\p\\bDone
+.Bl -bullet
+.\"
+.It
+Lines that start with a pound character ('#') are comments.
+.Bd -literal -offset
+# This is a comment
 .Ed
+.\"
+.It
+Lines that start with dash followed by a plus sign ("-+") are
+prompt confirmations, similar to the
+.Nm -P
+option.
+.Bd -literal -offset
+# This line will prompt before running a command:
+-+ before running command
+.Ed
+.\"
+.It
+Lines that start with a dash ("-") are parsed as command line options,
+allowing the file to set or change option values.
+.Bd -literal -offset
+# These lines changes option values:
+-w 10ms -e 1s --bump 100ms
+--line 400ms
+.Ed
+.\"
+.It
+Lines that start with a backslash character ("\\") escape any
+interpretation of that line, treating it as just normal text.
+.Bd -literal -offset
+\\# this is not seen as a comment
+\\-- this is not seen as an option
+.Ed
+.\"
+.It
+Any other lines are text that
+will be placed into the input buffer of appropriate tty.
+.Bd -literal -offset
+ls -l ~/bin
+df ${HOME}
+.Ed
+.\"
+.It
+Newlines ("\\n") are turned into carriage returns ("\\r"),
+suitable for terminal input.
+.It
+Trailing backslashes will escape a trailing newline, and
+it will be ignored.
+.Bd -literal -offset
+# The first line below will not execute the command.  We'll
+# sleep for 5 seconds and then enter it (using the blank line):
+ls -l /usr/src\\
+--sleep 5s
+
+# Above line left intentionally blank.
+.Ed
+.It
+The escape sequences listed above will be processed.
+.Bd -literal -offset
+# Turn off stuffing and waiting, set pause to one second
+# and emit a series of alternating pluses and minuses:
+--dry-run --wait=0 --pause=1s
++\\p\\b-\\p\\b+\\p\\b-\\p\\b+\\p\\b-\\p\\b+\\p\\b-
+\\p\\b+\\p\\b-\\p\\b+\\p\\b-\\p\\b+\\p\\b-\\p\\b+\\b\\
+Done
+--dry-run
+.Ed
+.El
 .Sh EXAMPLES
 .Pp
 This example places six lines of data into the input buffer:
@@ -236,7 +298,7 @@ velocityper -n 'one: \\x{63646566}\\ntwo: \\u{263A}\\n'
 .Pp
 This example uses a file to perform a demo in another terminal:
 .Bd -literal -offset indent
-sudo velocityper --tty /dev/pts/1 --file my-demo.ks
+sudo velocityper --tty /dev/pts/1 --file my-demo.vt
 .Ed
 .Pp
 The file would contain the full demo content:
@@ -247,16 +309,21 @@ The file would contain the full demo content:
 # First we adjust the timers to human-ish values
 -w 20ms -b 70ms -l 200ms
 # Then we pause to wait until I'm ready to start
+# Note: since lines in the file that start with "-" are options,
+# these option values must be quoted as if they were on the
+# command like. '-P ready to start' is not acceptable, since the
+# lack of quotes makes four tokens here, not two.
+# Use "-+ ready to start" to avoid quoting issues.
 -P "ready to start demo"
 configure private
 edit protocols bgp group foo neighbor 1.2.3.4
 # Pause again to explain what's about to happen
--P "bgp complete
+-+ bgp complete
 set apply-macro foo one 1
 set apply-macro foo two 2
 show
 # pause to allow more discussion
--P "apply complete"
+-+ apply complete
 set apply-lock user phil
 up 1
 protect neighbor 1.2.3.4
@@ -270,9 +337,30 @@ show
 # the terminal, mixing canned and interactive content.
 # But I might need to restore some state (e.g. location) before
 # hitting RETURN in the other terminal.
--P "protect complete
+-+ protect complete
 show | compare
--P "done"
+-+ done
+.Ed
+.Pp
+Another example file:
+.Bd -literal -offset indent
+# Use this file with the -C or -t options to use a distinct
+# tty for confirmations.
+# This line gives some timer option values
+-w 15 -b 40 -e 300
+# This line issues a simple command on the tty
+show system information
+# Prompt to make a delay so the presenter can talk
+-+ before 'show version'
+# This time we pause before the newline so the presenter
+# can talk about the command before the output appears.
+# This requires the line to end with an escape so the
+# end-of-line newline is ignored.  After the prompt, we
+have a blank line, and that newline enters this command
+show version\\
+-+ before newline
+
+-+ after newline
 .Ed
 .Sh HISTORICAL NOTES
 .Pp
